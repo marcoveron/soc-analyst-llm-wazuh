@@ -93,6 +93,29 @@ is how the human authorizes an action: a terminal `[y/N]` prompt vs. web buttons
 
 ---
 
+## Tests
+
+The suite runs **fully offline** — every external dependency (Wazuh Indexer/Manager,
+Ollama, threat-intel HTTP APIs) is mocked, so no lab is needed to run it.
+
+```bash
+source venv/bin/activate
+pip install -r requirements-dev.txt
+pytest
+```
+
+What it covers:
+
+| Test file | What it verifies |
+|-----------|------------------|
+| `tests/test_hitl_gate.py` | **The core property:** a block never executes unless the operator authorizes it; a denial is audited and runs nothing; an approval executes and is audited; an invalid IP short-circuits before any authorization is requested. |
+| `tests/test_ip_validation.py` | IP validation accepts valid IPv4/IPv6 and rejects malformed input. |
+| `tests/test_alerts_summary.py` | The alert summary builds correct counts, per-source-IP tally, severity ordering, and reports indexer errors instead of crashing. |
+| `tests/test_intel_verdict.py` | The IP-reputation heuristic flags malicious IPs by alert count or severity and withholds a verdict when evidence is weak. |
+| `tests/test_audit.py` | Each decision appends one timestamped JSON line to the audit log. |
+
+---
+
 ## Configuration reference
 
 All hosts/ports and credentials are read from environment variables — see `.env.example`

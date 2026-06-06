@@ -1,0 +1,34 @@
+#!/bin/bash
+# unisolate-host - custom Wazuh Active Response: lift the isolate-host quarantine.
+#
+# Resets the default policies back to ACCEPT and removes the isolation rules (tagged with
+# the WAZUH_ISOLATION comment). Leaves any unrelated rules (e.g. firewall-drop blocks)
+# untouched. Stateless (configure with <timeout>no</timeout>).
+#
+# Install on the VICTIM agent:
+#   sudo cp unisolate-host /var/ossec/active-response/bin/unisolate-host
+#   sudo chown root:wazuh /var/ossec/active-response/bin/unisolate-host
+#   sudo chmod 750 /var/ossec/active-response/bin/unisolate-host
+
+MARK="WAZUH_ISOLATION"
+
+LOCAL=$(dirname "$0")
+cd "$LOCAL" || exit 1
+cd ../.. || exit 1
+LOG="$(pwd)/logs/active-responses.log"
+
+read -r INPUT
+echo "$(date) $0: input=$INPUT" >> "$LOG"
+
+# Restore connectivity first, then clean up the isolation rules.
+iptables -P INPUT ACCEPT
+iptables -P OUTPUT ACCEPT
+iptables -P FORWARD ACCEPT
+
+while iptables -S | grep -q -- "--comment \"$MARK\""; do
+    LINE=$(iptables -S | grep -- "--comment \"$MARK\"" | head -n1 | sed 's/^-A/-D/')
+    iptables $LINE 2>/dev/null || break
+done
+
+echo "$(date) $0: host UN-ISOLATED (policies ACCEPT, isolation rules removed)" >> "$LOG"
+exit 0

@@ -1,0 +1,27 @@
+# Python virtual environment
+venv/
+.venv/
+
+# Python caches
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Secrets / local environment
+.env
+.env.*
+!.env.example
+
+# Runtime artifacts (regenerated on each run)
+response_audit.jsonl
+incident_report_*.md
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+
+# Claude Code internal files (not part of the deliverable)
+CLAUDE.md
+.claude/

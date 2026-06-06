@@ -1,0 +1,42 @@
+#!/bin/bash
+# kill-process - custom Wazuh Active Response: kill a process by PID or name.
+#
+# Reads the AR JSON from stdin and takes the target from parameters.extra_args[0]
+# (the agent sends it via the API 'arguments' field). A numeric target is killed by PID;
+# anything else is treated as a process name and ALL exact matches are killed.
+# Stateless (configure with <timeout>no</timeout>).
+#
+# Install on the VICTIM agent:
+#   sudo cp kill-process /var/ossec/active-response/bin/kill-process
+#   sudo chown root:wazuh /var/ossec/active-response/bin/kill-process
+#   sudo chmod 750 /var/ossec/active-response/bin/kill-process
+
+LOCAL=$(dirname "$0")
+cd "$LOCAL" || exit 1
+cd ../.. || exit 1
+LOG="$(pwd)/logs/active-responses.log"
+
+read -r INPUT
+echo "$(date) $0: input=$INPUT" >> "$LOG"
+
+# Extract the first extra_arg (PID or process name) from the AR JSON.
+TARGET=$(printf '%s' "$INPUT" | python3 -c \
+    "import sys,json; d=json.load(sys.stdin); a=d.get('parameters',{}).get('extra_args',[]); print(a[0] if a else '')" \
+    2>/dev/null)
+
+if [ -z "$TARGET" ]; then
+    echo "$(date) $0: no target in extra_args, nothing to do" >> "$LOG"
+    exit 1
+fi
+
+if echo "$TARGET" | grep -qE '^[0-9]+$'; then
+    kill -9 "$TARGET" 2>>"$LOG" \
+        && echo "$(date) $0: killed PID $TARGET" >> "$LOG" \
+        || echo "$(date) $0: could not kill PID $TARGET" >> "$LOG"
+else
+    pkill -9 -x "$TARGET" \
+        && echo "$(date) $0: killed process(es) named '$TARGET'" >> "$LOG" \
+        || echo "$(date) $0: no process named '$TARGET' found" >> "$LOG"
+fi
+
+exit 0

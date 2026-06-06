@@ -1,0 +1,35 @@
+#!/bin/bash
+# firewall-allow - custom Wazuh Active Response that REMOVES a firewall-drop block.
+#
+# Reads the AR JSON from stdin (Wazuh execd protocol), extracts the source IP, and
+# deletes the matching iptables DROP rule(s). Stateless (configure it with <timeout>no</timeout>).
+#
+# Install on the VICTIM agent:
+#   sudo cp firewall-allow /var/ossec/active-response/bin/firewall-allow
+#   sudo chown root:wazuh /var/ossec/active-response/bin/firewall-allow
+#   sudo chmod 750 /var/ossec/active-response/bin/firewall-allow
+
+LOCAL=$(dirname "$0")
+cd "$LOCAL" || exit 1
+cd ../.. || exit 1
+LOG="$(pwd)/logs/active-responses.log"
+
+read -r INPUT
+SRCIP=$(echo "$INPUT" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | head -n1)
+
+echo "$(date) $0: input=$INPUT" >> "$LOG"
+
+if [ -z "$SRCIP" ]; then
+    echo "$(date) $0: no srcip found, nothing to do" >> "$LOG"
+    exit 1
+fi
+
+# Remove every matching DROP rule for that source IP, on INPUT and FORWARD.
+for CHAIN in INPUT FORWARD; do
+    while iptables -C "$CHAIN" -s "$SRCIP" -j DROP 2>/dev/null; do
+        iptables -D "$CHAIN" -s "$SRCIP" -j DROP
+        echo "$(date) $0: removed DROP for $SRCIP on $CHAIN" >> "$LOG"
+    done
+done
+
+exit 0

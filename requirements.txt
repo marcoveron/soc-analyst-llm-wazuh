@@ -1,0 +1,15 @@
+# Core orchestration
+langchain==1.2.16
+langchain-core==1.3.2
+langchain-ollama==1.1.0
+langgraph==1.1.10
+langgraph-checkpoint==4.0.3
+
+# Local LLM client
+ollama==0.6.2
+
+# Web front-end
+streamlit==1.58.0
+
+# HTTP (Wazuh Indexer + Manager APIs, threat-intel lookups)
+requests==2.33.1

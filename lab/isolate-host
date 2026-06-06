@@ -1,0 +1,45 @@
+#!/bin/bash
+# isolate-host - custom Wazuh Active Response: EDR-style network quarantine.
+#
+# Drops ALL traffic on the endpoint except: loopback, established/related connections,
+# and the Wazuh Manager — so the host stays managed (and can be un-isolated remotely via
+# the unisolate-host AR) while it can no longer reach attackers or pivot. Stateless
+# (configure with <timeout>no</timeout>). Idempotent: clears its own rules first.
+#
+# Install on the VICTIM agent:
+#   sudo cp isolate-host /var/ossec/active-response/bin/isolate-host
+#   sudo chown root:wazuh /var/ossec/active-response/bin/isolate-host
+#   sudo chmod 750 /var/ossec/active-response/bin/isolate-host
+
+MANAGER_IP="${WAZUH_MANAGER_IP:-192.168.100.79}"
+MARK="WAZUH_ISOLATION"
+
+LOCAL=$(dirname "$0")
+cd "$LOCAL" || exit 1
+cd ../.. || exit 1
+LOG="$(pwd)/logs/active-responses.log"
+
+read -r INPUT
+echo "$(date) $0: input=$INPUT" >> "$LOG"
+
+# Remove any previous isolation rules so re-running is safe.
+while iptables -S | grep -q -- "--comment \"$MARK\""; do
+    LINE=$(iptables -S | grep -- "--comment \"$MARK\"" | head -n1 | sed 's/^-A/-D/')
+    iptables $LINE 2>/dev/null || break
+done
+
+# Allow loopback, established traffic and the Manager (both directions).
+iptables -I INPUT  -i lo -m comment --comment "$MARK" -j ACCEPT
+iptables -I OUTPUT -o lo -m comment --comment "$MARK" -j ACCEPT
+iptables -I INPUT  -m state --state ESTABLISHED,RELATED -m comment --comment "$MARK" -j ACCEPT
+iptables -I OUTPUT -m state --state ESTABLISHED,RELATED -m comment --comment "$MARK" -j ACCEPT
+iptables -I INPUT  -s "$MANAGER_IP" -m comment --comment "$MARK" -j ACCEPT
+iptables -I OUTPUT -d "$MANAGER_IP" -m comment --comment "$MARK" -j ACCEPT
+
+# Default-deny everything else.
+iptables -P INPUT DROP
+iptables -P OUTPUT DROP
+iptables -P FORWARD DROP
+
+echo "$(date) $0: host ISOLATED (only $MANAGER_IP + established + lo allowed)" >> "$LOG"
+exit 0
